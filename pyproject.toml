@@ -1,0 +1,17 @@
+[project]
+name = "context-cloze"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "edge-tts>=7.2.7",
+    "faster-whisper>=1.2.1",
+    "ollama>=0.6.1",
+    "openpyxl>=3.1.5",
+    "pandas>=2.3.3",
+    "sqlalchemy>=2.0.45",
+    "streamlit>=1.52.2",
+    "streamlit-mic-recorder>=0.0.8",
+    "watchdog>=6.0.0",
+]
