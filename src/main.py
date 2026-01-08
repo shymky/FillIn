@@ -13,13 +13,13 @@ from src.ui.management_page import management_page
 from src.ui.settings_page import settings_page
 
 def main():
-    st.set_page_config(page_title="Context Cloze", layout="wide", page_icon="📝")
+    st.set_page_config(page_title="FillIn", layout="wide", page_icon="📝")
     
     # Initialize DB
     init_db()
 
     with st.sidebar:
-        st.title("Context Cloze")
+        st.title("FillIn")
         page = st.radio("Navigation", ["Home 🏠", "Quiz 📝", "Review 📖", "Manage Sentences 🛠️", "Settings ⚙️"], label_visibility="collapsed")
         st.divider()
         st.caption("Made for effective learning.")

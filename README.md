@@ -1,4 +1,4 @@
-# Context Cloze Trainer
+# FillIn
 
 A distraction-free, AI-assisted English sentence completion trainer for macOS.
 Focused on listening and context, not just vocabulary memorization.

@@ -144,10 +144,36 @@ def settings_page():
             help="Adjust the reading speed for Japanese translations."
         )
     
+    st.divider()
+
+    st.subheader("Review Mode Defaults 🎧")
+    
+    col_r1, col_r2 = st.columns(2)
+    
+    with col_r1:
+        if "default_review_order" not in st.session_state:
+            st.session_state.default_review_order = "Random"
+            
+        st.selectbox(
+            "Default Order",
+            options=["Ascending", "Descending", "Random"],
+            key="default_review_order"
+        )
+        
+    with col_r2:
+        if "default_review_pattern" not in st.session_state:
+            st.session_state.default_review_pattern = "Japanese → English"
+            
+        st.radio(
+            "Default Pattern",
+            options=["English Only", "Japanese → English"],
+            key="default_review_pattern"
+        )
+    
     st.caption("Note: This volume setting controls the sound effects and reading voice playback.")
     
     st.divider()
     
     st.subheader("System Information")
-    st.text("Context Cloze Trainer v1.0")
+    st.text("FillIn v1.0")
     st.text("Running on: macOS")

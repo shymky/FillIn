@@ -3,7 +3,7 @@ import pandas as pd
 import time
 import random
 from src.database.core import get_db
-from src.database.models import Vocabulary
+from src.database.models import Vocabulary, Tag
 from src.services.audio_service import speak
 
 def get_review_state():
@@ -38,68 +38,115 @@ def review_page():
     st.title("Review 📖")
     
     db = next(get_db())
-    vocabs = db.query(Vocabulary).all()
     
-    if not vocabs:
-        st.info("No sentences found.")
-        return
+    # --- Controls ---
+    c1, c2, c3 = st.columns([1.5, 1.5, 1])
+    
+    # Filter by Tag
+    tags = db.query(Tag).all()
+    tag_names = ["All Items"] + [t.name for t in tags]
+    
+    # Store filter in session state to persist during reruns
+    if "review_filter_tag" not in st.session_state:
+        st.session_state.review_filter_tag = "All Items"
+
+    with c1:
+        selected_tag = st.selectbox(
+            "Filter by List", 
+            tag_names, 
+            index=tag_names.index(st.session_state.review_filter_tag) if st.session_state.review_filter_tag in tag_names else 0,
+            key="tag_filter_box",
+            on_change=lambda: st.session_state.update({"review_filter_tag": st.session_state.tag_filter_box})
+        )
+        st.session_state.review_filter_tag = selected_tag
         
+    # Sort Order
+    with c2:
+        sort_order = st.selectbox("Sort Order", ["ID (Default)", "Proficiency (Low->High)", "Proficiency (High->Low)"])
+
+    # Build Query based on filter
+    query = db.query(Vocabulary)
+    if selected_tag != "All Items":
+        query = query.join(Vocabulary.tags).filter(Tag.name == selected_tag)
+        
+    if "Proficiency (Low->High)" in sort_order:
+        query = query.order_by(Vocabulary.proficiency_score.asc())
+    elif "Proficiency (High->Low)" in sort_order:
+        query = query.order_by(Vocabulary.proficiency_score.desc())
+    else:
+        query = query.order_by(Vocabulary.id.asc())
+    
+    vocabs = query.all()
+    
     # --- Listening Mode UI ---
+    if "listen_mode" not in st.session_state:
+        st.session_state.listen_mode = st.session_state.get("default_review_order", "Random")
+    if "listen_pattern_ui" not in st.session_state:
+        st.session_state.listen_pattern_ui = st.session_state.get("default_review_pattern", "Japanese → English")
+
     with st.expander("🎧 Listening Mode (Background Play)", expanded=st.session_state.listening_active):
-        c1, c2, c3 = st.columns([2, 2, 1])
-        with c1:
+        lc1, lc2, lc3 = st.columns([2, 2, 1])
+        with lc1:
             mode = st.selectbox("Order", ["Ascending", "Descending", "Random"], key="listen_mode")
-        with c2:
+        with lc2:
             pattern = st.radio("Pattern", ["English Only", "Japanese → English"], key="listen_pattern_ui")
             
-        with c3:
-            st.write("") # Spacer
+        with lc3:
+            st.write("") 
             st.write("")
             if not st.session_state.listening_active:
+                # Pass filtered vocabs to listening mode
                 st.button("▶️ Start", on_click=start_listening, args=(mode, pattern, vocabs))
             else:
                 st.button("⏹️ Stop", on_click=stop_listening)
         
-        # Playback Loop (Auto-running if active)
+        # Playback Loop
         if st.session_state.listening_active and st.session_state.playlist:
-            # Get current track
             idx = st.session_state.current_track_index
             if idx < len(st.session_state.playlist):
                 vocab = st.session_state.playlist[idx]
-                
                 st.info(f"Now Playing: {vocab.id}. {vocab.english_phrase}")
                 
-                # Japanese Audio (if selected)
                 if st.session_state.get("listen_pattern") == "Japanese → English":
                      speak(vocab.japanese_meaning, lang="ja")
-                     # Estimate sleep: ~0.2s per char for JP
                      jp_duration = len(vocab.japanese_meaning) * 0.2 + 1.2
                      time.sleep(jp_duration)
                 
-                # English Audio
                 speak(vocab.english_phrase, lang="en")
-                
-                # Estimate sleep time: 0.08s per char + 1.5s buffer
                 duration = len(vocab.english_phrase) * 0.08 + 1.5
                 time.sleep(duration)
                 
-                # Next track
                 st.session_state.current_track_index += 1
                 st.rerun()
             else:
-                # End of playlist
                 st.success("Playlist finished!")
                 st.session_state.listening_active = False
-                
+
     st.divider()
 
     # --- Data Table ---
-    data = [{
-        "ID": v.id,
-        "Japanese": v.japanese_meaning,
-        "English": v.english_phrase,
-        "Proficiency": v.proficiency_score
-    } for v in vocabs]
-    
-    df = pd.DataFrame(data)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    if not vocabs:
+        st.info("No sentences found matching the filter.")
+    else:
+        data = []
+        for v in vocabs:
+            tag_list = ", ".join([t.name for t in v.tags])
+            data.append({
+                "ID": v.id,
+                "Status": v.status,
+                "Japanese": v.japanese_meaning,
+                "English": v.english_phrase,
+                "Proficiency": v.proficiency_score,
+                "Lists": tag_list
+            })
+        
+        df = pd.DataFrame(data)
+        st.dataframe(
+            df, 
+            width="stretch", 
+            hide_index=True,
+            column_config={
+                "Status": st.column_config.TextColumn("Status", width="small"),
+                "Lists": st.column_config.TextColumn("Lists", width="medium"),
+            }
+        )

@@ -42,7 +42,7 @@ def import_file_to_db(file_path: str):
 
     try:
         if file_path.endswith(".csv"):
-            df = pd.read_csv(file_path)
+            df = pd.read_csv(file_path, on_bad_lines='skip')
             # Handle NaN values being read as float nan
             df = df.fillna("")
         else:

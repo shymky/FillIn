@@ -9,7 +9,7 @@ def dashboard_page():
     total_vocab = db.query(Vocabulary).count()
     
     st.markdown(f"""
-    ### Welcome to Context Cloze Trainer!
+    ### Welcome to FillIn!
     
     **Current Stats:**
     - 📚 **Total Sentences:** {total_vocab}
