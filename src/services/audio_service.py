@@ -23,14 +23,39 @@ def transcribe(audio_bytes: bytes) -> str:
     Transcribes audio bytes to text using FasterWhisper.
     """
     if not audio_bytes:
+        print("Audio bytes empty")
         return ""
     
+    print(f"Received audio bytes: {len(audio_bytes)}")
+
     try:
         model = get_model()
         audio_file = io.BytesIO(audio_bytes)
-        segments, info = model.transcribe(audio_file, beam_size=5)
-        text = " ".join([segment.text for segment in segments])
-        return text.strip()
+        
+        # Disable VAD filter for now as it seems to block user speech.
+        # We will rely on manual filtering of hallucinations.
+        segments, info = model.transcribe(audio_file, beam_size=5, vad_filter=False)
+        
+        text_segments = []
+        for segment in segments:
+            print(f"Segment: '{segment.text}' (p_no_speech={segment.no_speech_prob:.2f})")
+            # Relaxed filter: only drop if extremely high probability of no speech (0.95)
+            # relying mainly on vad_filter=True
+            if segment.no_speech_prob > 0.95:
+                 print("-> Dropped due to high no_speech_prob")
+                 continue
+            text_segments.append(segment.text)
+
+        text = " ".join(text_segments).strip()
+        print(f"Transcribed Text: '{text}'")
+        
+        # known hallucinations from Whisper on silence
+        hallucinations = ["You", "you", "You.", "you.", "MBC", "Reporter", "The end", "You're welcome.", "Thank you."]
+        if text in hallucinations:
+             print(f"-> Filtered out hallucination: '{text}'")
+             return ""
+             
+        return text
     except Exception as e:
         print(f"Transcribe Error: {e}")
         return ""
@@ -230,3 +255,35 @@ def speak(text: str, lang: str = "en", stop_previous: bool = True):
              _current_process = subprocess.Popen(["say", "-v", fallback_voice, text])
         except:
              pass
+
+def generate_audio_path(text: str, lang: str = "en") -> str:
+    """
+    Generates audio file for the given text and language, respecting current session settings.
+    Returns the absolute path to the file.
+    """
+    # Defaults
+    voice = "en-US-AvaNeural"
+    if lang == "ja":
+        voice = "ja-JP-NanamiNeural"
+        
+    # Override from session state
+    try:
+        if lang == "ja" and "ja_voice" in st.session_state:
+            voice = st.session_state.ja_voice
+        elif lang == "en" and "en_voice" in st.session_state:
+            voice = st.session_state.en_voice
+    except:
+        pass
+        
+    # Get Rate
+    rate = "+0%"
+    try:
+        if lang == "ja" and "ja_speed" in st.session_state:
+            rate = st.session_state.ja_speed
+        elif lang == "en" and "en_speed" in st.session_state:
+            rate = st.session_state.en_speed
+    except:
+        pass
+
+    # Use helper to get file
+    return _generate_audio_file(text, voice, rate)

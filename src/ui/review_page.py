@@ -14,30 +14,28 @@ def get_review_state():
     if "current_track_index" not in st.session_state:
         st.session_state.current_track_index = 0
 
-def start_listening(mode, pattern, vocabs):
-    st.session_state.listening_active = True
-    st.session_state.current_track_index = 0
-    st.session_state.listen_pattern = pattern
-    
-    # Create playlist based on mode
-    playlist = [v for v in vocabs] # Copy
-    if mode == "Random":
-        random.shuffle(playlist)
-    elif mode == "Descending":
-        playlist.reverse()
-    # Ascending is default
-    
-    st.session_state.playlist = playlist
-
-def stop_listening():
-    st.session_state.listening_active = False
-    st.session_state.playlist = []
+    if "current_track_index" not in st.session_state:
+        st.session_state.current_track_index = 0
 
 def review_page():
     get_review_state()
     st.title("Review 📖")
     
     db = next(get_db())
+    
+    # --- Custom CSS for Larger Tables ---
+    st.markdown("""
+    <style>
+    /* Increase font size for dataframe/data_editor tables */
+    .stDataFrame div[data-testid="stDataFrame"] div[role="grid"] div[role="row"] div {
+        font-size: 18px !important;
+    }
+    .stDataFrame div[data-testid="stDataFrame"] div[role="columnheader"] {
+        font-size: 18px !important;
+        font-weight: bold !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
     
     # --- Controls ---
     c1, c2, c3 = st.columns([1.5, 1.5, 1])
@@ -78,49 +76,7 @@ def review_page():
     
     vocabs = query.all()
     
-    # --- Listening Mode UI ---
-    if "listen_mode" not in st.session_state:
-        st.session_state.listen_mode = st.session_state.get("default_review_order", "Random")
-    if "listen_pattern_ui" not in st.session_state:
-        st.session_state.listen_pattern_ui = st.session_state.get("default_review_pattern", "Japanese → English")
 
-    with st.expander("🎧 Listening Mode (Background Play)", expanded=st.session_state.listening_active):
-        lc1, lc2, lc3 = st.columns([2, 2, 1])
-        with lc1:
-            mode = st.selectbox("Order", ["Ascending", "Descending", "Random"], key="listen_mode")
-        with lc2:
-            pattern = st.radio("Pattern", ["English Only", "Japanese → English"], key="listen_pattern_ui")
-            
-        with lc3:
-            st.write("") 
-            st.write("")
-            if not st.session_state.listening_active:
-                # Pass filtered vocabs to listening mode
-                st.button("▶️ Start", on_click=start_listening, args=(mode, pattern, vocabs))
-            else:
-                st.button("⏹️ Stop", on_click=stop_listening)
-        
-        # Playback Loop
-        if st.session_state.listening_active and st.session_state.playlist:
-            idx = st.session_state.current_track_index
-            if idx < len(st.session_state.playlist):
-                vocab = st.session_state.playlist[idx]
-                st.info(f"Now Playing: {vocab.id}. {vocab.english_phrase}")
-                
-                if st.session_state.get("listen_pattern") == "Japanese → English":
-                     speak(vocab.japanese_meaning, lang="ja")
-                     jp_duration = len(vocab.japanese_meaning) * 0.2 + 1.2
-                     time.sleep(jp_duration)
-                
-                speak(vocab.english_phrase, lang="en")
-                duration = len(vocab.english_phrase) * 0.08 + 1.5
-                time.sleep(duration)
-                
-                st.session_state.current_track_index += 1
-                st.rerun()
-            else:
-                st.success("Playlist finished!")
-                st.session_state.listening_active = False
 
     st.divider()
 

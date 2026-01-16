@@ -173,6 +173,24 @@ def settings_page():
     st.caption("Note: This volume setting controls the sound effects and reading voice playback.")
     
     st.divider()
+
+    st.subheader("Quiz Settings 🎓")
+    
+    if "similarity_threshold" not in st.session_state:
+        st.session_state.similarity_threshold = 0.90
+        
+    threshold = st.slider(
+        "Pronunciation Exactness (Similarity Threshold)",
+        min_value=0.0,
+        max_value=1.0,
+        value=st.session_state.similarity_threshold,
+        step=0.05,
+        help="Higher means stricter matching. 1.0 = Exact Match. 0.60 = Allow typos."
+    )
+    st.session_state.similarity_threshold = threshold
+    st.caption(f"Current Tolerance: Allowing **{int((1.0 - threshold)*100)}%** deviation.")
+
+    st.divider()
     
     st.subheader("System Information")
     st.text("FillIn v1.0")
