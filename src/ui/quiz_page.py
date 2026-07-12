@@ -380,9 +380,7 @@ def quiz_page():
     with c_reset:
          if st.button("Reset 🔄", help="Clear current speech", use_container_width=True):
              if ctx.audio_processor:
-                 import numpy as np
-                 ctx.audio_processor.current_transcript = ""
-                 ctx.audio_processor.audio_buffer = np.array([], dtype=np.float32)
+                 ctx.audio_processor.reset_state()
              st.session_state.user_transcript = ""
              st.rerun()
              

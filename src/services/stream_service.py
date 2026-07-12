@@ -30,6 +30,18 @@ class StreamAudioProcessor(AudioProcessorBase):
         self.silence_threshold = 0.01 # Tuning param for normalized float32
         self.silence_duration_limit = 1.0 # Reset after 1s silence
 
+    def reset_state(self):
+        """
+        Thread-safe reset of all transcript buffers.
+        Called by UI when user clicks Reset.
+        """
+        print("ACTION: Manual Reset Triggered")
+        with self.buffer_lock:
+             self.audio_buffer = np.array([], dtype=np.float32)
+        
+        # Also reset internal state
+        self.current_transcript = ""
+
     def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
         """
         Callback from WebRTC thread.

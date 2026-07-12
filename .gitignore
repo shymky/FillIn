@@ -17,3 +17,4 @@ wheels/
 data/*
 !data/.gitkeep
 *.ipynb
+backend/data/audio_cache/*
