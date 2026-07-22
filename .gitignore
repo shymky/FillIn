@@ -1,20 +1,31 @@
-# Python-generated files
+
+# Node
+node_modules/
+.next/
+tsconfig.tsbuildinfo
+
+# Python
 __pycache__/
 *.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
+.venv/
 
-# Virtual environments
-.venv
+# Env (local machine specific — copy .env.local.example and fill in)
 .env
+.env.local
+
+# Audio cache (regenerated on first run)
+api/data/audio_cache/
+
+# Personal data / exports
+*.csv
+*.jpg
+*.jpeg
+*.png
+
+# Notebooks
+*.ipynb
 
 # OS
 .DS_Store
+Thumbs.db
 
-# Data & Cache
-data/*
-!data/.gitkeep
-*.ipynb
-backend/data/audio_cache/*
