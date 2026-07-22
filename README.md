@@ -1,66 +1,52 @@
 # FillIn
 
-A distraction-free, AI-assisted English sentence completion trainer for macOS.
-Focused on listening and context, not just vocabulary memorization.
+## 機能
 
-## Features
+- **カード自作・編集** — 英文と日本語訳を自由に登録・修正
+- **聞き流しモード** — ネイティブ品質の TTS 音声を繰り返し再生。速度調整・単語隠し・段階表示に対応
+- **クイズモード** — 穴埋め形式で定着確認
+- **間隔反復** — 忘却曲線に基づいてカードを自動スケジューリング
+- **タグ管理** — カードをリスト（タグ）で整理してセッションを絞り込み
 
-- **Cloze Test**: Fill in the blanks (phrases) based on context.
-- **Audio Support**:
-  - High-quality Neural TTS (Edge TTS) for English and Japanese.
-  - Sound effects for correct/incorrect answers.
-  - Non-blocking audio playback.
-- **Input**:
-  - Voice recognition (Speak your answer).
-  - Text input (Type your answer).
-- **Data Management**:
-  - Manage your vocabulary in `data/vocab.csv`.
-  - Sync data between CSV and the internal database.
+## 技術スタック
 
-## Installation
+| レイヤー | 技術 |
+|---|---|
+| フロントエンド | Next.js 15 / React 19 / Tailwind CSS / Zustand |
+| バックエンド | FastAPI / edge-tts / Whisper (OpenAI) |
+| 音声キャッシュ | サーバーサイドで MP3 を生成・保存、ブラウザが同一オリジン経由で取得 |
+| データ永続化 | ブラウザ localStorage（カード・設定） |
 
-1. **Prerequisites**:
-    - Python 3.12+
-    - `uv` (Project manager)
-    - `ffmpeg` (for audio processing, e.g., `brew install ffmpeg`)
+```
+Browser
+  └─ Next.js (port 3000)
+        ├─ /api/tts  ──────────────┐
+        └─ React UI (Zustand)      │  proxy
+                                   ▼
+                            FastAPI (port 9000)
+                                   └─ edge-tts → audio_cache/
+```
 
-2. **Setup**:
+## セットアップ
 
-    ```bash
-    uv sync
-    ```
+**前提条件:** Node.js 20+, pnpm, Python 3.12+, uv
 
-3. **Run the App**:
+```bash
+# バックエンド
+cd api
+uv sync
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 9000
 
-    ```bash
-    uv run streamlit run src/main.py
-    ```
+# フロントエンド（別ターミナル）
+cd web
+cp .env.local.example .env.local   # 必要に応じて編集
+pnpm install
+pnpm dev
+```
 
-## Usage
+ブラウザで `http://localhost:3000` を開く。
 
-### Managing Vocabulary
+## 今後の予定
 
-The app uses an internal database for speed, but you can manage your data in CSV.
-
-1. **Edit Data**: Open `data/vocab.csv` and add/edit rows.
-    - Columns: `Japanese`, `English`, `Target Word (Optional)`, `Proficiency`
-2. **Import Changes**:
-    Run this command to update the app with your CSV changes:
-
-    ```bash
-    uv run python scripts/sync_data.py import data/vocab.csv
-    ```
-
-3. **Export Data**:
-    If you made changes in the DB (future feature) and want to save to CSV:
-
-    ```bash
-    uv run python scripts/sync_data.py export data/vocab.csv
-    ```
-
-## Structure
-
-- `src/`: Source code (UI, Services, Database).
-- `data/`: Database (`app.db`), CSV (`vocab.csv`), and Sound files.
-- `scripts/`: Utility scripts (`sync_data.py`).
-- `tests/`: Testing scripts.
+- [ ] カードデータをサーバーサイド（SQLite）に移行
+- [ ] マルチユーザー対応・クラウドデプロイ
