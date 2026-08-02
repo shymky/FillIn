@@ -80,6 +80,7 @@ export default function ListeningPage() {
       mode={listeningConfig.listeningMode ?? "en_only"}
       repeat={listeningConfig.listeningRepeat ?? 3}
       delayBeforeEnglish={listeningConfig.delayBeforeEnglish ?? 0}
+      jaPlayMode={listeningConfig.jaPlayMode ?? "every"}
       initialHidePercent={listeningConfig.listeningHidePercent ?? 0}
       initialLoopPlaylist={listeningConfig.listeningLoopPlaylist ?? false}
       initialCardLoop={(listeningConfig.listeningCardLoop ?? false) || listeningConfig.listeningRepeat === "endless"}
@@ -114,6 +115,7 @@ function ListeningSession({
   mode,
   repeat,
   delayBeforeEnglish,
+  jaPlayMode = "every",
   initialHidePercent = 0,
   initialLoopPlaylist = false,
   initialCardLoop = false,
@@ -125,6 +127,7 @@ function ListeningSession({
   mode: "en_only" | "ja_en";
   repeat: number | "endless";
   delayBeforeEnglish: number;
+  jaPlayMode?: "every" | "first_only";
   initialHidePercent?: number;
   initialLoopPlaylist?: boolean;
   initialCardLoop?: boolean;
@@ -174,6 +177,8 @@ function ListeningSession({
   const effectiveRepeat = repeat === "endless" ? 1 : repeat;
   const ttsRateRef = React.useRef(ttsRate);
   React.useEffect(() => { ttsRateRef.current = ttsRate; }, [ttsRate]);
+  const jaPlayModeRef = React.useRef(jaPlayMode);
+  React.useEffect(() => { jaPlayModeRef.current = jaPlayMode; }, [jaPlayMode]);
   // Ref so the audio effect always reads the latest card text without card being a dep
   const cardRef = React.useRef(card);
   cardRef.current = card;
@@ -190,9 +195,9 @@ function ListeningSession({
       for (let p = 1; p <= effectiveRepeat; p++) {
         if (cancelled || !playingRef.current) return;
         setPass(p);
-        if (mode === "ja_en" && japaneseText.trim()) {
+        if (mode === "ja_en" && japaneseText.trim() && (jaPlayModeRef.current !== "first_only" || p === 1)) {
           setPhase("ja");
-          await speakTTS(japaneseText, { lang: "ja", playbackRate: ttsRate });
+          await speakTTS(japaneseText, { lang: "ja" });
           if (cancelled || !playingRef.current) return;
           if (delayBeforeEnglish > 0) {
             setPhase("wait");
@@ -778,18 +783,16 @@ function NowPlaying({
           <>
             <p className={enClass}>
               {tokens.map((t, i) => {
-                if (!t.hidden || !hideEnabled) return <span key={i}>{t.raw}</span>;
+                if (!t.isWord) return <span key={i}>{t.raw}</span>;
+                const isHidden = t.hidden && hideEnabled;
                 return (
                   <span
                     key={i}
-                    className="select-none"
-                    style={{
-                      color: "transparent",
-                      textDecoration: "underline",
-                      textDecorationColor: "var(--color-muted-foreground)",
-                      textUnderlineOffset: "3px",
-                      opacity: 0.5,
-                    }}
+                    className={cn(
+                      "inline-block border-b-2",
+                      isHidden ? "select-none border-muted-foreground/50" : "border-transparent",
+                    )}
+                    style={isHidden ? { color: "transparent" } : undefined}
                   >
                     {t.raw}
                   </span>

@@ -123,6 +123,8 @@ export type SessionConfig = {
   listeningHidePercent?: number;
   /** Listening-only: how to apply word hiding */
   listeningHideMode?: "fixed" | "progressive" | "reveal";
+  /** Listening-only (ja_en): play Japanese on every repeat or only the first */
+  jaPlayMode?: "every" | "first_only";
 };
 
 const defaultQuizSession: SessionConfig = {
@@ -146,6 +148,7 @@ const defaultListeningSession: SessionConfig = {
   listeningCardLoop: false,
   listeningHidePercent: 0,
   listeningHideMode: "fixed",
+  jaPlayMode: "every",
 };
 
 type SessionStore = {

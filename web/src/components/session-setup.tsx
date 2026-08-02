@@ -247,33 +247,48 @@ export function SessionSetup({
             </div>
 
             {config.listeningMode === "ja_en" && (
-              <div className="grid gap-2 md:grid-cols-[1fr,minmax(0,1.4fr)] md:items-start">
-                <div className="space-y-0.5">
-                  <Label className="text-sm font-medium">日本語→英語の間隔</Label>
-                  <p className="text-xs text-muted-foreground">
-                    指定秒数の間、英語を隠してテスト
-                  </p>
+              <>
+                <div className="grid gap-2 md:grid-cols-[1fr,minmax(0,1.4fr)] md:items-start">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-medium">日本語→英語の間隔</Label>
+                    <p className="text-xs text-muted-foreground">
+                      指定秒数の間、英語を隠してテスト
+                    </p>
+                  </div>
+                  <Select
+                    value={String(config.delayBeforeEnglish ?? 0)}
+                    onValueChange={(v) => {
+                      if (!v) return;
+                      onChange({ delayBeforeEnglish: Number(v) });
+                    }}
+                  >
+                    <SelectTrigger className="max-w-[180px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">なし</SelectItem>
+                      <SelectItem value="3">3秒</SelectItem>
+                      <SelectItem value="5">5秒</SelectItem>
+                      <SelectItem value="8">8秒</SelectItem>
+                      <SelectItem value="10">10秒</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                <Select
-                  value={String(config.delayBeforeEnglish ?? 0)}
-                  onValueChange={(v) => {
-                    if (!v) return;
-                    const secs = Number(v);
-                    onChange({ delayBeforeEnglish: secs });
-                  }}
-                >
-                  <SelectTrigger className="max-w-[180px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="0">なし</SelectItem>
-                    <SelectItem value="3">3秒</SelectItem>
-                    <SelectItem value="5">5秒</SelectItem>
-                    <SelectItem value="8">8秒</SelectItem>
-                    <SelectItem value="10">10秒</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  <ModeTile
+                    active={(config.jaPlayMode ?? "every") !== "first_only"}
+                    title="毎回流す"
+                    desc="リピートのたびに日本語→英語の順で再生。"
+                    onClick={() => onChange({ jaPlayMode: "every" })}
+                  />
+                  <ModeTile
+                    active={config.jaPlayMode === "first_only"}
+                    title="最初の一回のみ"
+                    desc="日本語は1回目だけ。2回目以降は英語のみ。"
+                    onClick={() => onChange({ jaPlayMode: "first_only" })}
+                  />
+                </div>
+              </>
             )}
             <div className="grid gap-2 md:grid-cols-[1fr,minmax(0,1.4fr)] md:items-center">
               <Label className="text-sm font-medium">再生速度</Label>
