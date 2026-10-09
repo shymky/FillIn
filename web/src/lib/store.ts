@@ -101,7 +101,8 @@ export type ListeningMode = "en_only" | "ja_en";
 export type ListeningRepeat = 1 | 2 | 3 | 5 | 10 | "endless";
 
 export type SessionConfig = {
-  tag: string;
+  /** Selected lists; an empty selection includes all cards. */
+  tags: string[];
   filter: SessionFilter;
   limit: SessionLimit;
   shuffle: boolean;
@@ -128,14 +129,14 @@ export type SessionConfig = {
 };
 
 const defaultQuizSession: SessionConfig = {
-  tag: "__all__",
+  tags: [],
   filter: "all",
   limit: 20,
   shuffle: true,
 };
 
 const defaultListeningSession: SessionConfig = {
-  tag: "__all__",
+  tags: [],
   filter: "all",
   limit: "endless",
   shuffle: true,
@@ -158,6 +159,25 @@ type SessionStore = {
   setListening: (patch: Partial<SessionConfig>) => void;
 };
 
+type PersistedSessionConfig = Partial<SessionConfig> & { tag?: string };
+
+function migrateSessionConfig(
+  persisted: PersistedSessionConfig | undefined,
+  defaults: SessionConfig,
+): SessionConfig {
+  const { tag, ...config } = persisted ?? {};
+  const tags = Array.isArray(config.tags)
+    ? config.tags
+    : tag && tag !== "__all__" ? [tag] : [];
+  return {
+    ...defaults,
+    ...config,
+    tags: tags.includes("__all__")
+      ? []
+      : [...new Set(tags.filter((value) => typeof value === "string" && value.length > 0))],
+  };
+}
+
 export const useSessionStore = create<SessionStore>()(
   persist(
     (set) => ({
@@ -169,15 +189,15 @@ export const useSessionStore = create<SessionStore>()(
     }),
     {
       name: "fillin2-session",
-      version: 3,
+      version: 4,
       migrate: (persisted) => {
         const s = persisted as {
-          quiz?: Partial<SessionConfig>;
-          listening?: Partial<SessionConfig>;
+          quiz?: PersistedSessionConfig;
+          listening?: PersistedSessionConfig;
         } | undefined;
         return {
-          quiz: { ...defaultQuizSession, ...(s?.quiz ?? {}) },
-          listening: { ...defaultListeningSession, ...(s?.listening ?? {}) },
+          quiz: migrateSessionConfig(s?.quiz, defaultQuizSession),
+          listening: migrateSessionConfig(s?.listening, defaultListeningSession),
         };
       },
     },
@@ -188,29 +208,29 @@ export const useSessionStore = create<SessionStore>()(
 // Lives in zustand (not React useState) so it survives route navigation/caching.
 type ListeningSessionStore = {
   sessionIds: string[] | null;
-  sessionTag: string;
-  setSession: (ids: string[], tag: string) => void;
+  sessionTags: string[];
+  setSession: (ids: string[], tags: string[]) => void;
   clearSession: () => void;
 };
 
 export const useListeningSessionStore = create<ListeningSessionStore>()((set) => ({
   sessionIds: null,
-  sessionTag: "__all__",
-  setSession: (ids, tag) => set({ sessionIds: ids, sessionTag: tag }),
-  clearSession: () => set({ sessionIds: null, sessionTag: "__all__" }),
+  sessionTags: [],
+  setSession: (ids, tags) => set({ sessionIds: ids, sessionTags: [...tags] }),
+  clearSession: () => set({ sessionIds: null, sessionTags: [] }),
 }));
 
 // Cross-store subscription: runs even when ListeningPage is unmounted.
-// Whenever cards change, auto-append new IDs that match the active session's tag.
+// Whenever cards change, auto-append new IDs matching any active session list.
 useCardStore.subscribe((state, prevState) => {
   if (state.cards === prevState.cards) return;
   const session = useListeningSessionStore.getState();
   if (!session.sessionIds) return;
   const sessionSet = new Set(session.sessionIds);
-  const tag = session.sessionTag;
+  const tags = session.sessionTags;
   const newIds = state.cards
     .filter((c) => !sessionSet.has(c.id))
-    .filter((c) => tag === "__all__" || c.tags.includes(tag))
+    .filter((c) => tags.length === 0 || c.tags.some((tag) => tags.includes(tag)))
     .map((c) => c.id);
   if (newIds.length === 0) return;
   useListeningSessionStore.setState({ sessionIds: [...session.sessionIds, ...newIds] });

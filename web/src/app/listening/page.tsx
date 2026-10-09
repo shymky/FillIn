@@ -69,7 +69,7 @@ export default function ListeningPage() {
         config={listeningConfig}
         kind="listening"
         onChange={setListeningConfig}
-        onStart={(session) => setSession(session.map((c) => c.id), listeningConfig.tag)}
+        onStart={(session) => setSession(session.map((c) => c.id), listeningConfig.tags)}
       />
     );
   }
@@ -170,7 +170,8 @@ function ListeningSession({
   const cardsLengthRef = React.useRef(localCards.length);
   React.useEffect(() => { cardsLengthRef.current = localCards.length; }, [localCards.length]);
 
-  const card = localCards[idx];
+  // Keep playback order local, but render edits directly from the card store.
+  const card = allCards.find((c) => c.id === localCards[idx]?.id);
   const finished = idx >= localCards.length;
   const ttsVoice = settings.ttsVoice;
   const ttsRate = settings.ttsRate ?? 1.0;
@@ -179,21 +180,23 @@ function ListeningSession({
   React.useEffect(() => { ttsRateRef.current = ttsRate; }, [ttsRate]);
   const jaPlayModeRef = React.useRef(jaPlayMode);
   React.useEffect(() => { jaPlayModeRef.current = jaPlayMode; }, [jaPlayMode]);
-  // Ref so the audio effect always reads the latest card text without card being a dep
+  // Track the active card without restarting playback on text edits.
   const cardRef = React.useRef(card);
-  cardRef.current = card;
+  React.useLayoutEffect(() => { cardRef.current = card; }, [card]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     const currentCard = cardRef.current;
     if (!playing || !currentCard || finished) return;
     let cancelled = false;
-    const englishText = currentCard.english;
-    const japaneseText = currentCard.japanese;
+    const getCurrentCard = () => useCardStore.getState().cards.find((c) => c.id === currentCard.id);
 
     async function run() {
       for (let p = 1; p <= effectiveRepeat; p++) {
         if (cancelled || !playingRef.current) return;
+        const latestCard = getCurrentCard();
+        if (!latestCard) return;
+        const japaneseText = latestCard.japanese;
         setPass(p);
         if (mode === "ja_en" && japaneseText.trim() && (jaPlayModeRef.current !== "first_only" || p === 1)) {
           setPhase("ja");
@@ -207,6 +210,9 @@ function ListeningSession({
           }
           if (cancelled || !playingRef.current) return;
         }
+        // An edit during Japanese playback or the wait applies to this utterance.
+        const englishText = getCurrentCard()?.english;
+        if (englishText === undefined) return;
         setPhase("en");
         await speakTTS(englishText, { voice: ttsVoice, lang: "en", playbackRate: ttsRate });
         if (cancelled || !playingRef.current) return;
@@ -352,6 +358,8 @@ function ListeningSession({
     );
   }
 
+  const hideEnglish = mode === "ja_en" && delayBeforeEnglish > 0 && phase !== "en";
+
   return (
     <>
       <PageHeader
@@ -391,6 +399,7 @@ function ListeningSession({
               phase={phase}
               card={card}
               mode={mode}
+              hideEnglish={hideEnglish}
               hidePercent={
                 (hideMode === "progressive" || hideMode === "reveal") && repeat !== "endless"
                   ? (hideMode === "progressive" ? getProgressiveSchedule : getRevealSchedule)(effectiveRepeat)[
@@ -512,6 +521,7 @@ function ListeningSession({
           />
           <RemoveCardDialog
             cardEnglish={card.english}
+            hideEnglish={hideEnglish}
             onConfirm={() => {
               stopSpeech();
               removeCard(card.id);
@@ -649,9 +659,11 @@ function RateSelector({ rate, onChange }: { rate: number; onChange: (r: number) 
 
 function RemoveCardDialog({
   cardEnglish,
+  hideEnglish = false,
   onConfirm,
 }: {
   cardEnglish: string;
+  hideEnglish?: boolean;
   onConfirm: () => void;
 }) {
   const [open, setOpen] = React.useState(false);
@@ -668,7 +680,10 @@ function RemoveCardDialog({
           <DialogHeader>
             <DialogTitle>このカードを削除しますか？</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground line-clamp-2">
+          <p
+            className={cn("text-sm text-muted-foreground line-clamp-2", hideEnglish && "invisible")}
+            aria-hidden={hideEnglish}
+          >
             &ldquo;{cardEnglish}&rdquo;
           </p>
           <DialogFooter>
@@ -695,6 +710,7 @@ function NowPlaying({
   phase,
   card,
   mode,
+  hideEnglish = false,
   hidePercent = 50,
   hideEnabled = false,
   onUpdate,
@@ -702,22 +718,21 @@ function NowPlaying({
   phase: Phase;
   card: CardType;
   mode: "en_only" | "ja_en";
+  hideEnglish?: boolean;
   hidePercent?: number;
   hideEnabled?: boolean;
   onUpdate?: (patch: Partial<CardType>) => void;
 }) {
   const [editingEn, setEditingEn] = React.useState(false);
-  const [editValue, setEditValue] = React.useState("");
-  const [displayEnglish, setDisplayEnglish] = React.useState(card.english);
-  const [jaValue, setJaValue] = React.useState(card.japanese || "");
+  const [editingJa, setEditingJa] = React.useState(false);
+  const displayEnglish = card.english;
+  const jaValue = card.japanese || "";
 
-  // Reset all edit state when card changes (not on content updates)
+  // Text is saved as it changes, including before automatic card advances.
   React.useEffect(() => {
     setEditingEn(false);
-    setEditValue("");
-    setDisplayEnglish(card.english);
-    setJaValue(card.japanese || "");
-  }, [card.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    setEditingJa(false);
+  }, [card.id]);
 
   // Cache hidden-word selection per card.id with the percent they were generated at.
   // On percent increase, new words are added additively (existing blanks preserved).
@@ -747,32 +762,31 @@ function NowPlaying({
       {mode === "ja_en" && (
         <EditableField
           value={jaValue}
-          onChange={setJaValue}
-          onBlur={() => { if (jaValue !== card.japanese) onUpdate?.({ japanese: jaValue }); }}
+          onChange={(japanese) => onUpdate?.({ japanese })}
           className={cn(
             "text-2xl font-medium transition-all duration-300",
             phase === "ja" ? "text-primary" : "text-muted-foreground",
           )}
         />
       )}
-      <div className="relative group/en">
+      {/* Keep the answer concealed from Japanese playback through the wait,
+          without changing the user's cloze selection or the card's layout. */}
+      <div
+        className={cn("relative group/en", hideEnglish && "invisible")}
+        aria-hidden={hideEnglish}
+        inert={hideEnglish}
+      >
         {editingEn ? (
           <>
             <EditableField
-              value={editValue}
-              onChange={setEditValue}
+              value={displayEnglish}
+              onChange={(english) => onUpdate?.({ english })}
               className={cn(enClass, "text-primary")}
               autoFocus
             />
             <button
               type="button"
-              onClick={() => {
-                if (editValue !== displayEnglish) {
-                  onUpdate?.({ english: editValue });
-                  setDisplayEnglish(editValue);
-                }
-                setEditingEn(false);
-              }}
+              onClick={() => setEditingEn(false)}
               className="absolute -top-1 -right-1 p-1 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
               aria-label="編集完了"
             >
@@ -801,7 +815,7 @@ function NowPlaying({
             </p>
             <button
               type="button"
-              onClick={() => { setEditValue(displayEnglish); setEditingEn(true); }}
+              onClick={() => setEditingEn(true)}
               className="absolute -top-1 -right-1 p-1 rounded-full text-muted-foreground opacity-0 group-hover/en:opacity-100 hover:bg-muted transition-all"
               aria-label="英文を編集"
             >
@@ -810,16 +824,17 @@ function NowPlaying({
           </>
         )}
       </div>
-      {mode === "en_only" && card.japanese && (
+      {mode === "en_only" && (card.japanese || editingJa) && (
         <EditableField
           value={jaValue}
-          onChange={setJaValue}
-          onBlur={() => { if (jaValue !== card.japanese) onUpdate?.({ japanese: jaValue }); }}
+          onChange={(japanese) => onUpdate?.({ japanese })}
+          onFocus={() => setEditingJa(true)}
+          onBlur={() => setEditingJa(false)}
           className="text-sm text-muted-foreground"
         />
       )}
       {card.targetWord !== undefined && (
-        <div className="flex justify-center">
+        <div className={cn("flex justify-center", hideEnglish && "invisible")} aria-hidden={hideEnglish}>
           <Badge variant="outline">{card.targetWord || "—"}</Badge>
         </div>
       )}
@@ -830,12 +845,14 @@ function NowPlaying({
 function EditableField({
   value,
   onChange,
+  onFocus,
   onBlur,
   className,
   autoFocus,
 }: {
   value: string;
   onChange: (v: string) => void;
+  onFocus?: () => void;
   onBlur?: () => void;
   className?: string;
   autoFocus?: boolean;
@@ -854,6 +871,7 @@ function EditableField({
       ref={ref}
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      onFocus={onFocus}
       onBlur={onBlur}
       rows={1}
       autoFocus={autoFocus}

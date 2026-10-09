@@ -1,8 +1,6 @@
 import type { Card } from "./types";
 import type { SessionConfig } from "./store";
 
-export const ALL_TAG = "__all__";
-
 /** Distinct tags across the deck, sorted with counts. */
 export function collectTags(
   cards: Card[],
@@ -36,7 +34,7 @@ function passesFilter(card: Card, filter: SessionConfig["filter"]): boolean {
 
 /**
  * Filter and order the deck for a Quiz/Listening session:
- * - Match tag (or all)
+ * - Match any selected list (or all)
  * - Match status filter
  * - Optionally shuffle
  * - Truncate to limit (unless endless)
@@ -46,7 +44,7 @@ export function buildSession(
   config: SessionConfig,
 ): Card[] {
   let pool = cards.filter((c) =>
-    config.tag === ALL_TAG ? true : c.tags.includes(config.tag),
+    config.tags.length === 0 || c.tags.some((tag) => config.tags.includes(tag)),
   );
   pool = pool.filter((c) => passesFilter(c, config.filter));
 

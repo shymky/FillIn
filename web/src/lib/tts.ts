@@ -55,7 +55,12 @@ export async function speak(
   let blobUrl: string;
   try {
     const res = await fetch(url, { signal: controller.signal });
-    if (!res.ok) throw new Error(`TTS ${res.status}`);
+    if (!res.ok) {
+      const errorBody: unknown = await res.json().catch(() => null);
+      const detail = errorBody && typeof errorBody === "object" && "detail" in errorBody
+        && typeof errorBody.detail === "string" ? errorBody.detail : "";
+      throw new Error(`TTS ${res.status}${detail ? `: ${detail}` : ""}`);
+    }
     blobUrl = URL.createObjectURL(await res.blob());
   } catch (e) {
     if (currentController === controller) currentController = null;

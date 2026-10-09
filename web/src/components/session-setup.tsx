@@ -21,9 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Card as CardType } from "@/lib/types";
-import { ALL_TAG, buildSession, collectTags } from "@/lib/session";
+import { buildSession, collectTags } from "@/lib/session";
 import type {
-  ListeningMode,
   ListeningRepeat,
   SessionConfig,
   SessionFilter,
@@ -35,7 +34,7 @@ import { cn } from "@/lib/utils";
 const RATE_OPTIONS = [0.5, 0.75, 1.0, 1.25, 1.5] as const;
 
 const FILTERS: { value: SessionFilter; label: string; hint: string }[] = [
-  { value: "all", label: "All", hint: "every card in the list" },
+  { value: "all", label: "All", hint: "every card in the selected lists" },
   { value: "due", label: "Due today", hint: "next-review date has passed" },
   { value: "unmastered", label: "Unmastered", hint: "mastery < 85%" },
   { value: "new", label: "New only", hint: "never attempted (reps = 0)" },
@@ -70,6 +69,14 @@ export function SessionSetup({
 
   const canStart = preview.length > 0;
 
+  const toggleTag = (tag: string) => {
+    onChange({
+      tags: config.tags.includes(tag)
+        ? config.tags.filter((selected) => selected !== tag)
+        : [...config.tags, tag],
+    });
+  };
+
   return (
     <div className="mx-auto max-w-3xl p-4 md:p-8 space-y-6">
       <div className="space-y-2">
@@ -84,15 +91,18 @@ export function SessionSetup({
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <ListChecks className="h-4 w-4" /> 1. Choose list
+            <ListChecks className="h-4 w-4" /> 1. Choose lists
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            複数選択できます。重複するカードは1枚にまとめます。選択をすべて外すと全カードが対象になります。
+          </p>
           <TagChip
-            active={config.tag === ALL_TAG}
+            active={config.tags.length === 0}
             label="All cards"
             count={cards.length}
-            onClick={() => onChange({ tag: ALL_TAG })}
+            onClick={() => onChange({ tags: [] })}
           />
           {tags.length === 0 ? (
             <p className="text-xs text-muted-foreground">
@@ -103,10 +113,10 @@ export function SessionSetup({
               {tags.map((t) => (
                 <TagChip
                   key={t.name}
-                  active={config.tag === t.name}
+                  active={config.tags.includes(t.name)}
                   label={t.name}
                   count={t.count}
-                  onClick={() => onChange({ tag: t.name })}
+                  onClick={() => toggleTag(t.name)}
                 />
               ))}
             </div>
@@ -431,6 +441,7 @@ function TagChip({
           ? "border-primary bg-primary/10 text-primary"
           : "hover:bg-accent",
       )}
+      aria-pressed={active}
     >
       {label}
       <Badge variant={active ? "secondary" : "outline"}>{count}</Badge>

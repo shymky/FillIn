@@ -7,7 +7,15 @@ export async function GET(req: NextRequest) {
   try {
     const res = await fetch(`${UPSTREAM}/tts${search}`, { cache: "no-store" });
     if (!res.ok) {
-      return new NextResponse(null, { status: res.status });
+      return new NextResponse(await res.text(), {
+        status: res.status,
+        headers: {
+          "Content-Type": res.headers.get("Content-Type")?.includes("application/json")
+            ? "application/json"
+            : "text/plain; charset=utf-8",
+          "Cache-Control": "no-store",
+        },
+      });
     }
     const body = await res.arrayBuffer();
     return new NextResponse(body, {
@@ -18,6 +26,9 @@ export async function GET(req: NextRequest) {
     });
   } catch (e) {
     console.error("TTS proxy error:", e);
-    return new NextResponse(null, { status: 502 });
+    return NextResponse.json(
+      { detail: "TTS API is unavailable. Start the API server and check that API_URL points to its address." },
+      { status: 502, headers: { "Cache-Control": "no-store" } },
+    );
   }
 }
